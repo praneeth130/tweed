@@ -71,7 +71,7 @@ data:
     registry.hub.docker.com:
       tls-verify: true
       images:
-        rkoster/mysql-tweed-stencil: ["latest"]
+        tweedproject/mysql-standalone-stencil: ["edge"]
 
   catalog.yml: |
     catalog:
@@ -89,8 +89,8 @@ data:
                 MySQL version 8.x
               tweed:
                 infrastructure: k8s
-                stencil: mysql-tweed-stencil:latest
-                limit:  2
+                stencil: 'mysql-standalone-stencil:edge'
+                limit: 7
                 config:
                   version: '8'
 ---
