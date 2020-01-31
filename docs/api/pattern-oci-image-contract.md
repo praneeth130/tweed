@@ -65,8 +65,8 @@ pattern image, with the following structure:
 
 ```
 ---
-tweed:   v1             # version of the Tweed API contract
-pattern: Redis Cluster  # human-friendly pattern name
+pattern: tweed/v1       # version of the Tweed API contract
+name:    Redis Cluster  # human-friendly pattern name
 version: 1.2.3          # version of this pattern implementation
 
 summary: A short summary of the pattern and its purpose

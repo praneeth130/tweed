@@ -64,8 +64,8 @@ backend image, with the following structure:
 
 ```
 ---
-tweed:   v1             # version of the Tweed API contract
-backend: Redis Cluster  # human-friendly backend name
+backend: tweed/v1       # version of the Tweed API contract
+name:    Redis Cluster  # human-friendly backend name
 version: 1.2.3          # version of this backend implementation
 
 summary: A short summary of the backend and its purpose
