@@ -27,7 +27,7 @@ by supplying one of the following string tokens as an argument to
 the image entrypoint:
 
   - `metadata` - The pattern image must emit metadata about
-    itself, including authorship, versioning, summary and
+    itself, including authorship, versioning, summary, and
     descriptive text, and a list of files that the `provision`
     operation will produce.
 
@@ -45,8 +45,37 @@ the image entrypoint:
     and tear down a deployed service instance, and (if possible)
     remove all bound credential sets.
 
+For each of these operations, subsequent sections detail the
+semantics and purpose of the operation, how it is invoked, what
+environment it executes in, how standard input / output / error
+streams are handled (and what meaning, if any, is attached to
+them), and the interpretation of its exit code.  The following
+table summarizes most of those details:
+
+| Operation   | Invocation                | stdin    | stdout           | stderr        |
+| ----------- | ------------------------- | -------- | ---------------- | ------------- |
+| metadata    | `$entrypoint metadata`    | _closed_ | metadata YAML    | _diagnostics_ |
+| provision   | `$entrypoint provision`   | _closed_ | _diagnostics_    | _diagnostics_ |
+| bind        | `$entrypoint bind`        | _closed_ | credentials YAML | _diagnostics_ |
+| unbind      | `$entrypoint unbind`      | _closed_ | _diagnostics_    | _diagnostics_ |
+| deprovision | `$entrypoint deprovision` | _closed_ | _diagnostics_    | _diagnostics_ |
+
 
 ## The 'metadata' Operation
+
+This operation is used by the Tweed broker to interrogate the
+pattern image to determine its suitability for use with the
+current implementation of Tweed, and to provide additional context
+and information to operators wishing to configure and use the
+pattern image in a catalog service plan.
+
+### ARGUMENTS
+
+When Tweed wishes to run the `metadata` operation, it will execute
+the image's OCI _entrypoint_, passing it a single argument: the
+string "metadata".
+
+### ENVIRONMENT
 
 The `metadata` operation inherits the following environment:
 
@@ -56,12 +85,27 @@ The `metadata` operation inherits the following environment:
     future revisions of Tweed, but is guaranteed to reside under
     the reserved `/tweed` top-level directory.
 
+### STANDARD INPUT
+
+The `metadata` operation will not receive any information via
+standard input.  Tweed is free to close the `stdin` stream as its
+implementation sees fit.  No guarantees are made about the
+contents of this input stream, and backend images are strongly
+advised to not read from it.
+
+### STANDARD ERROR
+
 The standard error stream will be logged by the Tweed broker, for
-review later by interested operators.
+review later by interested operators.  No structured information
+should be emitted to these two stream; they are intended
+explicitly for debugging and diagnostic use -- Tweed will NOT
+interpret them in any way.
+
+### STANDARD OUTPUT
 
 The standard output stream will be interpreted as a YAML document,
-which properly identifies the pattern image as a valid Tweed
-pattern image, with the following structure:
+which identifies the backend image as a valid Tweed backend image,
+using the following structure:
 
 ```
 ---
@@ -104,15 +148,31 @@ inputs:
       Make the Redis storage persistent, instead of ephemeral.
 ```
 
-If the `metadata` operation does not exit 0, the pattern image as
-a whole will be considered invalid.
-
 If the `metadata` operation does not produce well-formed and
 semantically correct YAML, Tweed will likewise consider the the
 pattern image as a whole invalid.
 
+### EXIT CODE
+
+The `metadata` operation exits with status 0 on success.
+
+If the `metadata` operation does not exit 0, the pattern image as
+a whole will be considered invalid.
+
 
 ## The 'provision' Operation
+
+This operation is used by the Tweed broker to deploy a new
+instance of a catalog service plan, in accordance with Tweed
+operator configuration and service requester parameters.
+
+### ARGUMENTS
+
+When Tweed wishes to run the `provision` operation, it will execute
+the image's OCI _entrypoint_, passing it a single argument: the
+string "provision".
+
+### ENVIRONMENT
 
 The `provision` operation inherits the following environment:
 
@@ -167,19 +227,53 @@ The `provision` operation inherits the following environment:
     in future revisions of Tweed, but is guaranteed to reside
     under the reserved `/tweed` top-level directory.
 
-The standard output and standard error streams will be multiplexed
-together (i.e. `2>&1`) and logged by the Tweed broker for review
-later by interested operators.  No structured information should
-be emitted to these two stream; they are intended explicitly for
-debugging and diagnostic use -- Tweed will NOT interpret them in
-any way.
+### STANDARD INPUT
+
+The `provision` operation will not receive any information via
+standard input.  Tweed is free to close the `stdin` stream as its
+implementation sees fit.  No guarantees are made about the
+contents of this input stream, and backend images are strongly
+advised to not read from it.
+
+### STANDARD ERROR
+
+The standard error stream (file descriptor 2) is multiplexed into
+the standard output stream (file descriptor 1), as if per the
+shell idiom `2>&1`.  See the next section for details on how Tweed
+interprets the standard output stream.
+
+### STANDARD OUTPUT
+
+The standard output stream is logged by the Tweed broker for
+review later by interested operators.  No structured information
+should be emitted to these two stream; they are intended
+explicitly for debugging and diagnostic use -- Tweed will NOT
+interpret them in any way.
+
+### EXIT CODE
+
+The `provision` operation exits with status 0 on success.
 
 If the `provision` operation does not exit 0, Tweed will mark the
 service instance as failed, and retain logs for operators to
-review.
+review.  A subsequent `deprovision` operation may be attempted by
+the operator.
 
 
 ## The 'bind' Operation
+
+This operation is used by the Tweed broker to provision
+credentials for an existing service instance, for use by a new
+application.  Service instances may be bound multiple times, with
+each binding standing on its own.
+
+### ARGUMENTS
+
+When Tweed wishes to run the `bind` operation, it will execute
+the image's OCI _entrypoint_, passing it a single argument: the
+string "bind".
+
+### ENVIRONMENT
 
 The `bind` operation inherits the following environment:
 
@@ -205,12 +299,23 @@ The `bind` operation inherits the following environment:
     in future revisions of Tweed, but is guaranteed to reside
     under the reserved `/tweed` top-level directory.
 
-The standard output and standard error streams will be multiplexed
-together (i.e. `2>&1`) and logged by the Tweed broker for review
-later by interested operators.  No structured information should
-be emitted to these two stream; they are intended explicitly for
-debugging and diagnostic use -- Tweed will NOT interpret them in
-any way.
+### STANDARD INPUT
+
+The `bind` operation will not receive any information via
+standard input.  Tweed is free to close the `stdin` stream as its
+implementation sees fit.  No guarantees are made about the
+contents of this input stream, and backend images are strongly
+advised to not read from it.
+
+### STANDARD ERROR
+
+The standard error stream will be logged by the Tweed broker, for
+review later by interested operators.  No structured information
+should be emitted to these two stream; they are intended
+explicitly for debugging and diagnostic use -- Tweed will NOT
+interpret them in any way.
+
+### STANDARD OUTPUT
 
 The standard output stream will be interpreted as a YAML document,
 which fully and completely represents the necessary information to
@@ -236,14 +341,33 @@ etc.
 The exact semantics of the YAML structure are left to the pattern
 author to document and communicate to end users.
 
-If the `bind` operation does not exit 0, Tweed will consider the
-bind a failure, and will NOT store any generated credentials.
-
 If the `bind` operation does not emit well-formed YAML, Tweed will
-also consider the bind a failure and not store credentials.
+consider the bind a failure and not store credentials.
+
+### EXIT CODE
+
+The `bind` operation exits with status 0 on success.
+
+If the `bind` operation does not exit 0, Tweed will consider the
+bind a failure.  The binding itself will be stored, and a
+subsequent `unbind` operation against it may be requested by the
+service requester.
 
 
 ## The 'unbind' Operation
+
+This operation is used by the Tweed broker to revoke and destroy
+any bound credentials associated with a single service instance
+binding.  Once a binding has been unbound, it will be forgotten
+and should no longer be used.
+
+### ARGUMENTS
+
+When Tweed wishes to run the `unbind` operation, it will execute
+the image's OCI _entrypoint_, passing it a single argument: the
+string "unbind".
+
+### ENVIRONMENT
 
 The `unbind` operation inherits the following environment:
 
@@ -280,12 +404,32 @@ The `unbind` operation inherits the following environment:
     in future revisions of Tweed, but is guaranteed to reside
     under the reserved `/tweed` top-level directory.
 
-The standard output and standard error streams will be multiplexed
-together (i.e. `2>&1`) and logged by the Tweed broker for review
-later by interested operators.  No structured information should
-be emitted to these two stream; they are intended explicitly for
-debugging and diagnostic use -- Tweed will NOT interpret them in
-any way.
+### STANDARD INPUT
+
+The `unbind` operation will not receive any information via
+standard input.  Tweed is free to close the `stdin` stream as its
+implementation sees fit.  No guarantees are made about the
+contents of this input stream, and backend images are strongly
+advised to not read from it.
+
+### STANDARD ERROR
+
+The standard error stream (file descriptor 2) is multiplexed into
+the standard output stream (file descriptor 1), as if per the
+shell idiom `2>&1`.  See the next section for details on how Tweed
+interprets the standard output stream.
+
+### STANDARD OUTPUT
+
+The standard output stream is logged by the Tweed broker for
+review later by interested operators.  No structured information
+should be emitted to these two stream; they are intended
+explicitly for debugging and diagnostic use -- Tweed will NOT
+interpret them in any way.
+
+### EXIT CODE
+
+The `unbind` operation exits with status 0 on success.
 
 If the `unbind` operation does not exit 0, Tweed will consider the
 unbind a failure, and will continue to consider the binding as
@@ -293,6 +437,19 @@ valid and usable.
 
 
 ## The 'deprovision' Operation
+
+This operation is used by the Tweed broker to decommission and
+tear down a previously provisioned service instance.  Tweed makes
+no guarantee that all extant bindings for a service instance have
+been unbound before `deprovision` is called against that instance.
+
+### ARGUMENTS
+
+When Tweed wishes to run the `deprovision` operation, it will execute
+the image's OCI _entrypoint_, passing it a single argument: the
+string "deprovision".
+
+### ENVIRONMENT
 
 The `deprovision` operation inherits the following environment:
 
@@ -334,13 +491,32 @@ The `deprovision` operation inherits the following environment:
     in future revisions of Tweed, but is guaranteed to reside
     under the reserved `/tweed` top-level directory.
 
+### STANDARD INPUT
 
-The standard output and standard error streams will be multiplexed
-together (i.e. `2>&1`) and logged by the Tweed broker for review
-later by interested operators.  No structured information should
-be emitted to these two stream; they are intended explicitly for
-debugging and diagnostic use -- Tweed will NOT interpret them in
-any way.
+The `deprovision` operation will not receive any information via
+standard input.  Tweed is free to close the `stdin` stream as its
+implementation sees fit.  No guarantees are made about the
+contents of this input stream, and backend images are strongly
+advised to not read from it.
+
+### STANDARD ERROR
+
+The standard error stream (file descriptor 2) is multiplexed into
+the standard output stream (file descriptor 1), as if per the
+shell idiom `2>&1`.  See the next section for details on how Tweed
+interprets the standard output stream.
+
+### STANDARD OUTPUT
+
+The standard output stream is logged by the Tweed broker for
+review later by interested operators.  No structured information
+should be emitted to these two stream; they are intended
+explicitly for debugging and diagnostic use -- Tweed will NOT
+interpret them in any way.
+
+### EXIT CODE
+
+The `deprovision` operation exits with status 0 on success.
 
 If the `deprovision` operation does not exit 0, Tweed will
 continue to consider the instance as valid, and allow bind,
